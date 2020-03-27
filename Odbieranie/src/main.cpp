@@ -6,7 +6,7 @@ int main() {
     std::string nazwa;
     std::cout << "Podaj nazwe pliku do zapisu: \n";
     std::cin >> nazwa;
-    nazwa +=".txt";
+   // nazwa +=".txt";
 
     Odbieranie odbieranie(nazwa);
     if(!odbieranie.ustawPort()){

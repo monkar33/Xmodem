@@ -10,6 +10,7 @@
 #include <windows.h>
 #include <fstream>
 #include <iostream>
+#include <unistd.h>
 
 class Odbieranie {
     char blok[128];

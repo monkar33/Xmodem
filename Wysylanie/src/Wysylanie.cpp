@@ -18,18 +18,40 @@ unsigned long rozmiarZnaku= sizeof(znak);
 static DCB deviceControlBlock;
 static HANDLE uchwyt;
 
+/* On entry, addr=>start of data
+             num = length of data
+             crc = incoming CRC     */
+int Wysylanie::CRC16(char *addr, int num, int crc)
+{
+    int i;
+
+    for (; num>0; num--)               /* Step through bytes in memory */
+    {
+        crc = crc ^ (*addr++ << 8);      /* Fetch byte from memory, XOR into CRC top byte*/
+        for (i=0; i<8; i++)              /* Prepare to rotate 8 bits */
+        {
+            crc = crc << 1;                /* rotate */
+            if (crc & 0x10000)             /* bit 15 was set (now bit 16)... */
+                crc = (crc ^ 0x1021) & 0xFFFF; /* XOR with XMODEM polynomic */
+            /* and ensure CRC remains 16-bit value */
+        }                              /* Loop for 8 bits */
+    }                                /* Loop until num=0 */
+    return(crc);                     /* Return updated CRC */
+}
+
 
 char Wysylanie::sumaKontrolna(int flaga) {
 
     char suma = 0;
     if(flaga == 1){  //-------------------Bez CRC
         for(int i=0; i<128; i++) {
-            suma += this->blok[i] % 256;
+            suma = suma ^ this->blok[i];
         }
     }
     else{ //---------------------Z CRC
-
+      //  suma = CRC16();
     }
+   // std::cout <<"Suma: " << suma <<'\n';
     return suma;
 
 }
@@ -50,26 +72,36 @@ bool Wysylanie::wyslaniePliku(){
     }
 
     std::ifstream plik;
-    plik.open(this->nazwa);
+    plik.open(this->nazwa, std::fstream::in | std::fstream::binary);
 
     int nrBloku = 0;
     if(plik.good() == true){
 
-        while(!plik.eof()){
+        plik.seekg(0, std::ios::end);
+        int rozmiarPliku = plik.tellg();
+        plik.seekg(0, std::ios::beg);
+
+        char* buforPliku = new char[rozmiarPliku+1];
+        plik.read(buforPliku, rozmiarPliku);
+        plik.close();
+
+        int iter = 0;
+        while(iter <= rozmiarPliku){
             bool czyWyslano = false;
             char suma;
             this->naglowek[0] = SOH;
             this->naglowek[1] = (char)nrBloku;
             this->naglowek[2] = (char)(255 - nrBloku);
 
-            for(int i = 0; i < 128; i++){
-                this->blok[i] = 0;
+            for(int i=0; i<128; i++){
+                this->blok[i] =buforPliku[i+iter];
+                if(i+iter > rozmiarPliku){
+                    this->blok[i] = 0x23;
+                }
             }
-            for(int i =0; i<128  && !plik.eof(); i++){
-                this->blok[i] = plik.get();
-            }
-            do{
+            iter +=128;
 
+            do{
                 suma = sumaKontrolna(flaga);
 
                 WriteFile(uchwyt, &naglowek[0],licznikZnakow,&rozmiarZnaku, NULL); //SOH
@@ -85,12 +117,17 @@ bool Wysylanie::wyslaniePliku(){
                     std::cout << "Otrzymano ACK, blok danych nr: " << nrBloku <<" zostal wyslany\n";
 
                 }
+                if(znak == NAK){
+                    std::cout << "Pakiet nie zostal wyslany poprawnie. Ponowienie proby........\n";
+                }
 
             }while(!czyWyslano);
 
             nrBloku++;
             if(nrBloku == 256)
                 nrBloku = 0;
+
+
 
         }
 

@@ -32,7 +32,7 @@ char Odbieranie::sumaKontrolna(int flaga){
     char suma = 0;
     if(flaga == 1){ ////// bez CRC
         for(int i=0; i<128; i++) {
-            suma += this->blok[i] % 256;
+            suma = suma ^ this->blok[i];
         }
     }
     else{ /////Z CRC
@@ -58,9 +58,12 @@ bool Odbieranie::odbieraniePliku(int flaga) {
     }
 
     std::cout <<"Wysylam  NAK/C\n";
-    WriteFile(uchwyt, &znak, ileZnakow, &rozmiarZnaku, NULL);
+   // do{
+      //  sleep(1000);
+        WriteFile(uchwyt, &znak, ileZnakow, &rozmiarZnaku, NULL);
+   // }while(!ReadFile(uchwyt, &znak, 1, &rozmiarZnaku, NULL));
 
-    while(ReadFile(uchwyt, &znak, 1, &rozmiarZnaku, NULL) && znak != EOT){
+    while(ReadFile(uchwyt, &znak, 1, &rozmiarZnaku, NULL) && znak == SOH){
 
         bool czyOdebrane = false;
         while(!czyOdebrane){
@@ -75,25 +78,32 @@ bool Odbieranie::odbieraniePliku(int flaga) {
             if(flaga == 1 ){
                 ReadFile(uchwyt, &suma, 1, &rozmiarZnaku, NULL);
                 sumaSprawdzenie = sumaKontrolna(flaga);
+              //  std::cout << "Suma: "<< suma << "  sprawdzenie: " <<sumaSprawdzenie <<'\n';
             }
             else{
+                ReadFile(uchwyt, &suma, 2, &rozmiarZnaku, NULL);
 
             }
 
-            if(suma == sumaSprawdzenie){
+            if(suma == sumaSprawdzenie) {
                 std::cout << "Udalo sie przeslac pakiet! \n";
-              //  for(int i=0; i<128; i++){
-              //      if(this->blok[i] != 0){
-                       // plik << this->blok[i];
-               //     }
-             //   }
-                plik << this->blok;
+                int ile = 128;
+                if(blok[127] == '#' and blok[126] == '#' and blok[125] == '#') {
+                    for (int i = 127; i >= 0 and this->blok[i] == '#'; i--) {
+                        ile--;
+                    }
+                }
+                plik.write(this->blok, ile);
+
                 WriteFile(uchwyt, &ACK, 1, &rozmiarZnaku, NULL);
                 czyOdebrane = true;
 
-            }
+                }
+
             else{
-                std::cout << "Nie udalo sie przeslac pakietu :/\n";
+                std::cout << "Nie udalo sie przeslac pakietu :/\n"
+                             "Przesylam NAK\n";
+                WriteFile(uchwyt, &NAK, 1, &rozmiarZnaku, NULL);
             }
 
         }

@@ -30,6 +30,8 @@ public:
 
     bool ustawPort();
 
+    int CRC16(char *addr, int num, int crc);
+
 
 
 };
