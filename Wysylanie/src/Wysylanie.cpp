@@ -18,42 +18,68 @@ unsigned long rozmiarZnaku= sizeof(znak);
 static DCB deviceControlBlock;
 static HANDLE uchwyt;
 
-/* On entry, addr=>start of data
-             num = length of data
-             crc = incoming CRC     */
-int Wysylanie::CRC16(char *addr, int num, int crc)
-{
-    int i;
-
-    for (; num>0; num--)               /* Step through bytes in memory */
-    {
-        crc = crc ^ (*addr++ << 8);      /* Fetch byte from memory, XOR into CRC top byte*/
-        for (i=0; i<8; i++)              /* Prepare to rotate 8 bits */
-        {
-            crc = crc << 1;                /* rotate */
-            if (crc & 0x10000)             /* bit 15 was set (now bit 16)... */
-                crc = (crc ^ 0x1021) & 0xFFFF; /* XOR with XMODEM polynomic */
-            /* and ensure CRC remains 16-bit value */
-        }                              /* Loop for 8 bits */
-    }                                /* Loop until num=0 */
-    return(crc);                     /* Return updated CRC */
-}
-
-
-char Wysylanie::sumaKontrolna(int flaga) {
+char Wysylanie::sumaKontrolna() {
 
     char suma = 0;
-    if(flaga == 1){  //-------------------Bez CRC
-        for(int i=0; i<128; i++) {
-            suma = suma ^ this->blok[i];
-        }
-    }
-    else{ //---------------------Z CRC
-      //  suma = CRC16();
-    }
-   // std::cout <<"Suma: " << suma <<'\n';
-    return suma;
+    for(int i=0; i<128; i++) {
 
+        suma = suma ^ this->blok[i];
+    }
+    return suma;
+}
+
+int Wysylanie::CRC(char *dane, int ileZnakow) { // blok danych , ilosc = 128
+    char i;
+    int CRC = 0;
+    while (--ileZnakow >= 0)
+    {
+        CRC = CRC ^ (int) *dane++ << 8;
+        i = 8;
+        do{
+            if (CRC & 0x8000)
+                CRC = CRC << 1 ^ 0x1021;
+            else
+                CRC = CRC << 1;
+        } while(--i);
+    }
+    return (CRC);
+}
+
+int Wysylanie::Potega2(int x) {
+    if( x == 0 ) return 1;
+    if( x == 1 ) return 2;
+
+    int wynik = 2;
+    for( int i = 2; i <= x; i++ ) wynik = wynik * 2;
+
+    return wynik;
+}
+
+char Wysylanie::SumaCRC(int liczba, int ktoryBajt)
+{
+    int binarna[16];
+    int reszta = 0;
+
+    for(int i = 0; i < 16; i++) {
+        binarna[i] = 0;
+    }
+
+    for(int i = 0; i < 16; i++) {
+        reszta = liczba % 2;
+        if (reszta == 1) liczba = (liczba - 1) / 2;
+        if (reszta == 0) liczba = liczba / 2;
+        binarna[15-i] = reszta;
+    }
+
+    int koniec;
+    int x = 0;
+    if(ktoryBajt == 1) koniec = 7;
+    if(ktoryBajt == 2) koniec = 15;
+
+    for (int i = 0; i < 8; i++)
+        x = x + Potega2(i) * binarna[koniec - i];
+
+    return (char)x;
 }
 
 bool Wysylanie::wyslaniePliku(){
@@ -75,7 +101,7 @@ bool Wysylanie::wyslaniePliku(){
     plik.open(this->nazwa, std::fstream::in | std::fstream::binary);
 
     int nrBloku = 0;
-    if(plik.good() == true){
+    if(plik.good()){
 
         plik.seekg(0, std::ios::end);
         int rozmiarPliku = plik.tellg();
@@ -88,7 +114,6 @@ bool Wysylanie::wyslaniePliku(){
         int iter = 0;
         while(iter <= rozmiarPliku){
             bool czyWyslano = false;
-            char suma;
             this->naglowek[0] = SOH;
             this->naglowek[1] = (char)nrBloku;
             this->naglowek[2] = (char)(255 - nrBloku);
@@ -102,14 +127,27 @@ bool Wysylanie::wyslaniePliku(){
             iter +=128;
 
             do{
-                suma = sumaKontrolna(flaga);
-
                 WriteFile(uchwyt, &naglowek[0],licznikZnakow,&rozmiarZnaku, NULL); //SOH
                 WriteFile(uchwyt, &naglowek[1],licznikZnakow,&rozmiarZnaku, NULL); // nr bloku/pakietu
                 WriteFile(uchwyt, &naglowek[2],licznikZnakow,&rozmiarZnaku, NULL); //255 - nr bloku/pakietu
 
-                WriteFile(uchwyt, &blok, 128, &rozmiarZnaku, NULL);
-                WriteFile(uchwyt, &suma, 1, &rozmiarZnaku, NULL);
+                //WriteFile(uchwyt, &blok, 128, &rozmiarZnaku, NULL);
+                for(int i =0; i < 128; i++){
+                    WriteFile(uchwyt, &blok[i], 1, &rozmiarZnaku, NULL);
+                }
+                if(flaga == 1){
+                    char suma;
+                    suma = sumaKontrolna();
+                    WriteFile(uchwyt, &suma, 1, &rozmiarZnaku, NULL);
+                }
+                else if(flaga == 2){
+                    char crc = CRC(blok,128);
+                    char suma[2];
+                    suma[0] = SumaCRC(crc, 1);
+                    suma[1] = SumaCRC(crc, 2);
+                    WriteFile(uchwyt, &suma, 2, &rozmiarZnaku, NULL);
+                }
+
                 ReadFile(uchwyt, &znak, 1, &rozmiarZnaku, NULL);
 
                 if(znak == ACK){

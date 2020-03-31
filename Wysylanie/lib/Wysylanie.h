@@ -26,12 +26,17 @@ public:
 
     bool wyslaniePliku();
 
-    char sumaKontrolna(int flaga);
+    char sumaKontrolna();
 
     bool ustawPort();
 
-    int CRC16(char *addr, int num, int crc);
+    int CRC(char *addr, int num);
 
+    int Potega2(int x);
+
+    char SumaCRC(int n, int numer);
+
+    int* Binarnie(int liczba);
 
 
 };

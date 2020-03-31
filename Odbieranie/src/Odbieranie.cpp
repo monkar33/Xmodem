@@ -28,16 +28,66 @@ Odbieranie::~Odbieranie() {
 
 }
 
-char Odbieranie::sumaKontrolna(int flaga){
+int Odbieranie::CRC(char *dane, int ileZnakow) { // blok danych , ilosc = 128
+    char i;
+    int CRC = 0;
+    while (--ileZnakow >= 0)
+    {
+        CRC = CRC ^ (int) *dane++ << 8;
+        i = 8;
+        do{
+            if (CRC & 0x8000)
+                CRC = CRC << 1 ^ 0x1021;
+            else
+                CRC = CRC << 1;
+        } while(--i);
+    }
+    return (CRC);
+}
+
+int Odbieranie::Potega2(int x) {
+    if( x == 0 ) return 1;
+    if( x == 1 ) return 2;
+
+    int wynik = 2;
+    for( int i = 2; i <= x; i++ ) wynik = wynik * 2;
+
+    return wynik;
+}
+
+char Odbieranie::SumaCRC(int liczba, int ktoryBajt)
+{
+    int binarna[16];
+    int reszta = 0;
+
+    for(int i = 0; i < 16; i++) {
+        binarna[i] = 0;
+    }
+
+    for(int i = 0; i < 16; i++) {
+        reszta = liczba % 2;
+        if (reszta == 1) liczba = (liczba - 1) / 2;
+        if (reszta == 0) liczba = liczba / 2;
+        binarna[15-i] = reszta;
+    }
+
+    int koniec;
+    int x = 0;
+    if(ktoryBajt == 1) koniec = 7;
+    if(ktoryBajt == 2) koniec = 15;
+
+    for (int i = 0; i < 8; i++)
+        x = x + Potega2(i) * binarna[koniec - i];
+
+    return (char)x;
+}
+
+char Odbieranie::sumaKontrolna(){
     char suma = 0;
-    if(flaga == 1){ ////// bez CRC
         for(int i=0; i<128; i++) {
             suma = suma ^ this->blok[i];
         }
-    }
-    else{ /////Z CRC
 
-    }
     return suma;
 }
 
@@ -45,7 +95,6 @@ bool Odbieranie::odbieraniePliku(int flaga) {
     std::ofstream plik;
     plik.open(nazwa);
     int nrBloku = 0;
-    char suma;
     char sumaSprawdzenie;
 
     if(flaga == 1)
@@ -58,34 +107,55 @@ bool Odbieranie::odbieraniePliku(int flaga) {
     }
 
     std::cout <<"Wysylam  NAK/C\n";
-   // do{
-      //  sleep(1000);
-        WriteFile(uchwyt, &znak, ileZnakow, &rozmiarZnaku, NULL);
-   // }while(!ReadFile(uchwyt, &znak, 1, &rozmiarZnaku, NULL));
 
-    while(ReadFile(uchwyt, &znak, 1, &rozmiarZnaku, NULL) && znak == SOH){
+    for(int i = 0; i < 20; i++){
+
+        WriteFile(uchwyt, &znak, ileZnakow, &rozmiarZnaku, NULL);
+        ReadFile(uchwyt, &znak, 1, &rozmiarZnaku, NULL);
+        std::cout << (int)znak << std::endl;
+        if( znak == SOH) {
+            break;
+        }
+        sleep(3000);
+    }
+
+    while(znak == SOH){
 
         bool czyOdebrane = false;
+        bool poprawnaSuma = false;
         while(!czyOdebrane){
             ReadFile(uchwyt, &nrBloku, 1, &rozmiarZnaku, NULL);
             std::cout <<"Odbieram blok danych nr: " << (int)nrBloku <<'\n';
             ReadFile(uchwyt, &znak, 1, &rozmiarZnaku, NULL);
             if(znak != (char)(255 - nrBloku)){
-                std::cout << "Cos poszlo nie tak!!!\n";
+                std::cout << "Numer pakietu nie jest poprawny!!!\n";
             }
 
-            ReadFile(uchwyt, &blok, 128, &rozmiarZnaku, NULL);
+            //ReadFile(uchwyt, &blok, 128, &rozmiarZnaku, NULL);
+            for(int i =0; i < 128; i++){
+                ReadFile(uchwyt, &blok[i], 1, &rozmiarZnaku, NULL);
+            }
             if(flaga == 1 ){
+                char suma;
                 ReadFile(uchwyt, &suma, 1, &rozmiarZnaku, NULL);
-                sumaSprawdzenie = sumaKontrolna(flaga);
-              //  std::cout << "Suma: "<< suma << "  sprawdzenie: " <<sumaSprawdzenie <<'\n';
+                sumaSprawdzenie = sumaKontrolna();
+                if(suma == sumaSprawdzenie){
+                    poprawnaSuma = true;
+                }
             }
             else{
+                char suma[2];
+                char sumaSprawdzenie[2];
                 ReadFile(uchwyt, &suma, 2, &rozmiarZnaku, NULL);
-
+                char crc = CRC(blok,128);
+                sumaSprawdzenie[0] = SumaCRC(crc,1);
+                sumaSprawdzenie[1] = SumaCRC(crc,2);
+                if(suma[0] == sumaSprawdzenie[0] && suma[1] == sumaSprawdzenie[1]){
+                    poprawnaSuma = true;
+                }
             }
 
-            if(suma == sumaSprawdzenie) {
+            if(poprawnaSuma) {
                 std::cout << "Udalo sie przeslac pakiet! \n";
                 int ile = 128;
                 if(blok[127] == '#' and blok[126] == '#' and blok[125] == '#') {
@@ -107,6 +177,8 @@ bool Odbieranie::odbieraniePliku(int flaga) {
             }
 
         }
+
+        ReadFile(uchwyt, &znak, 1, &rozmiarZnaku, NULL);
 
     }
     if(znak == EOT){

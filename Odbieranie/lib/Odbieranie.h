@@ -25,11 +25,15 @@ public:
 
     bool odbieraniePliku(int flaga);
 
-    char sumaKontrolna(int flaga);
+    char sumaKontrolna();
 
     bool ustawPort();
 
+    int CRC(char *blok, int ileZnakow);
 
+    int Potega2(int x);
+
+    char SumaCRC(int n, int numer);
 
 };
 
