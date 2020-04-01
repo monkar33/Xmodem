@@ -2,7 +2,6 @@
 #include "../lib/Wysylanie.h"
 
 int main() {
-    std::cout << 5/2 << std::endl;
     std::string nazwa;
     std::cout << "Podaj sciezke do pliku ktory chcesz przeslac: \n";
     std::cin >> nazwa;

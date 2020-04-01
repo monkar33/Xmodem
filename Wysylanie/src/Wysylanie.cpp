@@ -2,14 +2,15 @@
 // Created by Monika on 25.03.2020.
 //
 
+#include <vector>
 #include "../lib/Wysylanie.h"
 
 const char SOH = 01;
 const char EOT = 04;
 const char ACK = 06;
-const char NAK = 15;
+const char NAK = 21;
 const char CAN = 18;
-const char C = 43;
+const char C = 67;
 
 
 char znak;
@@ -19,12 +20,13 @@ static DCB deviceControlBlock;
 static HANDLE uchwyt;
 
 char Wysylanie::sumaKontrolna() {
-
     char suma = 0;
     for(int i=0; i<128; i++) {
-
-        suma = suma ^ this->blok[i];
+        //  suma = suma ^ this->blok[i];
+        suma += this->blok[i];
+        suma = suma % 256;
     }
+
     return suma;
 }
 
@@ -98,19 +100,23 @@ bool Wysylanie::wyslaniePliku(){
     }
 
     std::ifstream plik;
-    plik.open(this->nazwa, std::fstream::in | std::fstream::binary);
+    plik.open(this->nazwa,std::fstream::binary);
+
 
     int nrBloku = 0;
     if(plik.good()){
 
-        plik.seekg(0, std::ios::end);
-        int rozmiarPliku = plik.tellg();
-        plik.seekg(0, std::ios::beg);
+        std::vector<char> buforPliku;
+        int rozmiarPliku = 0;
+        while(plik){
+            char b = plik.get();
+            if(plik){
+                buforPliku.push_back(b);
+                rozmiarPliku ++;
+            }
 
-        char* buforPliku = new char[rozmiarPliku+1];
-        plik.read(buforPliku, rozmiarPliku);
+        }
         plik.close();
-
         int iter = 0;
         while(iter <= rozmiarPliku){
             bool czyWyslano = false;
@@ -131,7 +137,6 @@ bool Wysylanie::wyslaniePliku(){
                 WriteFile(uchwyt, &naglowek[1],licznikZnakow,&rozmiarZnaku, NULL); // nr bloku/pakietu
                 WriteFile(uchwyt, &naglowek[2],licznikZnakow,&rozmiarZnaku, NULL); //255 - nr bloku/pakietu
 
-                //WriteFile(uchwyt, &blok, 128, &rozmiarZnaku, NULL);
                 for(int i =0; i < 128; i++){
                     WriteFile(uchwyt, &blok[i], 1, &rozmiarZnaku, NULL);
                 }
@@ -169,12 +174,14 @@ bool Wysylanie::wyslaniePliku(){
 
         }
 
+
         WriteFile(uchwyt, &EOT, 1, &rozmiarZnaku, NULL);
         std::cout << "Wyslano EOT\n";
         ReadFile(uchwyt, &znak, 1, &rozmiarZnaku, NULL);
         if(znak == ACK){
             std::cout << "Przesylanie zakonczone" << std::endl;
         }
+
 
     }
     else{

@@ -2,14 +2,15 @@
 // Created by Monika on 25.03.2020.
 //
 
+#include <vector>
 #include "../lib/Odbieranie.h"
 
 const char SOH = 01;
 const char EOT = 04;
 const char ACK = 06;
-const char NAK = 15;
+const char NAK = 21;
 const char CAN = 18;
-const char C = 43;
+const char C = 67;
 
 
 char znak;
@@ -85,7 +86,9 @@ char Odbieranie::SumaCRC(int liczba, int ktoryBajt)
 char Odbieranie::sumaKontrolna(){
     char suma = 0;
         for(int i=0; i<128; i++) {
-            suma = suma ^ this->blok[i];
+          //  suma = suma ^ this->blok[i];
+          suma += this->blok[i];
+          suma = suma % 256;
         }
 
     return suma;
@@ -93,7 +96,7 @@ char Odbieranie::sumaKontrolna(){
 
 bool Odbieranie::odbieraniePliku(int flaga) {
     std::ofstream plik;
-    plik.open(nazwa);
+    plik.open(nazwa, std::ios::binary);
     int nrBloku = 0;
     char sumaSprawdzenie;
 
@@ -131,7 +134,6 @@ bool Odbieranie::odbieraniePliku(int flaga) {
                 std::cout << "Numer pakietu nie jest poprawny!!!\n";
             }
 
-            //ReadFile(uchwyt, &blok, 128, &rozmiarZnaku, NULL);
             for(int i =0; i < 128; i++){
                 ReadFile(uchwyt, &blok[i], 1, &rozmiarZnaku, NULL);
             }
@@ -163,7 +165,12 @@ bool Odbieranie::odbieraniePliku(int flaga) {
                         ile--;
                     }
                 }
-                plik.write(this->blok, ile);
+                std::vector<char> buforPliku;
+                for(int i = 0 ; i < ile; i++){
+                    buforPliku.push_back(blok[i]);
+                }
+
+                plik.write(buforPliku.data(), buforPliku.size());
 
                 WriteFile(uchwyt, &ACK, 1, &rozmiarZnaku, NULL);
                 czyOdebrane = true;
