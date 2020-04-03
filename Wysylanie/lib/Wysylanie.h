@@ -30,7 +30,7 @@ public:
 
     bool ustawPort();
 
-    int CRC(char *addr, int num);
+    unsigned int CRC(char *addr, int num);
 
     int Potega2(int x);
 

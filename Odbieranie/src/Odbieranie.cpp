@@ -23,53 +23,64 @@ static HANDLE uchwyt;
 
 Odbieranie::Odbieranie(const std::string &nazwa) : nazwa(nazwa) {}
 
-
-
 Odbieranie::~Odbieranie() {
 
 }
 
 int Odbieranie::CRC(char *dane, int ileZnakow) { // blok danych , ilosc = 128
-    char i;
-    int CRC = 0;
-    while (--ileZnakow >= 0)
-    {
-        CRC = CRC ^ (int) *dane++ << 8;
-        i = 8;
-        do{
-            if (CRC & 0x8000)
-                CRC = CRC << 1 ^ 0x1021;
-            else
-                CRC = CRC << 1;
-        } while(--i);
+//    char i;
+//    int CRC = 0;
+//    while (--ileZnakow >= 0)
+//    {
+//        CRC = CRC ^ (int) *dane++ << 8;
+//        i = 8;
+//        do{
+//            if (CRC & 0x8000)
+//                CRC = CRC << 1 ^ 0x1021;
+//            else
+//                CRC = CRC << 1;
+//        } while(--i);
+//    }
+//    return (CRC);
+
+    uint8_t i;
+    uint16_t wCrc = 0xffff;
+    while (ileZnakow--) {
+        wCrc ^= *(unsigned char *)dane++ << 8;
+        for (i=0; i < 8; i++)
+            wCrc = wCrc & 0x8000 ? (wCrc << 1) ^ 0x1021 : wCrc << 1;
     }
-    return (CRC);
+    return wCrc & 0xffff;
 }
 
 int Odbieranie::Potega2(int x) {
-    if( x == 0 ) return 1;
-    if( x == 1 ) return 2;
-
+    if( x == 0 ) {
+        return 1;
+    }
+    if( x == 1 ) {
+        return 2;
+    }
     int wynik = 2;
-    for( int i = 2; i <= x; i++ ) wynik = wynik * 2;
-
+    for( int i = 2; i <= x; i++ ) {
+        wynik = wynik * 2;
+    }
     return wynik;
 }
 
 char Odbieranie::SumaCRC(int liczba, int ktoryBajt)
 {
-    int binarna[16];
+    int tab[16];
     int reszta = 0;
 
     for(int i = 0; i < 16; i++) {
-        binarna[i] = 0;
+        tab[i] = 0;
     }
 
     for(int i = 0; i < 16; i++) {
         reszta = liczba % 2;
         if (reszta == 1) liczba = (liczba - 1) / 2;
         if (reszta == 0) liczba = liczba / 2;
-        binarna[15-i] = reszta;
+        tab[15-i] = reszta;
     }
 
     int koniec;
@@ -78,15 +89,18 @@ char Odbieranie::SumaCRC(int liczba, int ktoryBajt)
     if(ktoryBajt == 2) koniec = 15;
 
     for (int i = 0; i < 8; i++)
-        x = x + Potega2(i) * binarna[koniec - i];
+        x = x + Potega2(i) * tab[koniec - i];
 
+    for(int i = 0; i< 16; i++) {
+        std::cout << tab[i] << " ";
+    }
+    std::cout << " " << std::endl;
     return (char)x;
 }
 
 char Odbieranie::sumaKontrolna(){
     char suma = 0;
         for(int i=0; i<128; i++) {
-          //  suma = suma ^ this->blok[i];
           suma += this->blok[i];
           suma = suma % 256;
         }
@@ -110,12 +124,11 @@ bool Odbieranie::odbieraniePliku(int flaga) {
     }
 
     std::cout <<"Wysylam  NAK/C\n";
-
     for(int i = 0; i < 20; i++){
 
         WriteFile(uchwyt, &znak, ileZnakow, &rozmiarZnaku, NULL);
         ReadFile(uchwyt, &znak, 1, &rozmiarZnaku, NULL);
-        std::cout << (int)znak << std::endl;
+        std::cout <<" znak " << znak << std::endl;
         if( znak == SOH) {
             break;
         }
@@ -123,7 +136,6 @@ bool Odbieranie::odbieraniePliku(int flaga) {
     }
 
     while(znak == SOH){
-
         bool czyOdebrane = false;
         bool poprawnaSuma = false;
         while(!czyOdebrane){
@@ -133,7 +145,6 @@ bool Odbieranie::odbieraniePliku(int flaga) {
             if(znak != (char)(255 - nrBloku)){
                 std::cout << "Numer pakietu nie jest poprawny!!!\n";
             }
-
             for(int i =0; i < 128; i++){
                 ReadFile(uchwyt, &blok[i], 1, &rozmiarZnaku, NULL);
             }
@@ -147,12 +158,16 @@ bool Odbieranie::odbieraniePliku(int flaga) {
             }
             else{
                 char suma[2];
-                char sumaSprawdzenie[2];
+                char sumaCrcSprawdzenie[2];
                 ReadFile(uchwyt, &suma, 2, &rozmiarZnaku, NULL);
-                char crc = CRC(blok,128);
-                sumaSprawdzenie[0] = SumaCRC(crc,1);
-                sumaSprawdzenie[1] = SumaCRC(crc,2);
-                if(suma[0] == sumaSprawdzenie[0] && suma[1] == sumaSprawdzenie[1]){
+                int crc = CRC(blok,128);
+                std::cout << "crc: " <<crc << '\n';
+                sumaCrcSprawdzenie[0] = SumaCRC(crc,1);
+                sumaCrcSprawdzenie[1] = SumaCRC(crc,2);
+
+                std::cout << "Suma odebrana: " << (int)suma[0]<<"  " << (int)suma[1] << "\n Suma obliczona: " << (int)sumaCrcSprawdzenie[0] << " "<< (int)sumaCrcSprawdzenie[1] << "\n";
+
+                if(suma[0] == sumaCrcSprawdzenie[0] && suma[1] == sumaCrcSprawdzenie[1]){
                     poprawnaSuma = true;
                 }
             }
@@ -160,8 +175,8 @@ bool Odbieranie::odbieraniePliku(int flaga) {
             if(poprawnaSuma) {
                 std::cout << "Udalo sie przeslac pakiet! \n";
                 int ile = 128;
-                if(blok[127] == '#' and blok[126] == '#' and blok[125] == '#') {
-                    for (int i = 127; i >= 0 and this->blok[i] == '#'; i--) {
+                if(blok[127] == '0' and blok[126] == '0' and blok[125] == '0') {
+                    for (int i = 127; i >= 0 and this->blok[i] == '0'; i--) {
                         ile--;
                     }
                 }

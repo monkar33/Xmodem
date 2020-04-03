@@ -35,6 +35,8 @@ public:
 
     char SumaCRC(int n, int numer);
 
+    int crc16(char *ptr, int count);
+
 };
 
 
