@@ -29,39 +29,26 @@ char Wysylanie::sumaKontrolna() {
     return suma;
 }
 
-unsigned int Wysylanie::CRC(char *dane, int ileZnakow) {// blok danych , ilosc = 128
-    /*char i;
+int Wysylanie::CRC(char *blok, int ileZnakow) {// blok danych , ileZnakow = 128
     int CRC = 0;
-    while (--ileZnakow >= 0) {
-        CRC = CRC ^ (int) *dane++ << 8;
-        i = 8;
-        do {
-            if (CRC & 0x8000)
-                CRC = CRC << 1 ^ 0x1021;
-            else
-                CRC = CRC << 1;
-        } while (--i);
+
+    while (--ileZnakow >= 0)
+    {
+        CRC = CRC ^ (int)*blok++ << 8; 								 // wez znak i dopisz osiem zer
+        for (int i = 0; i < 8; ++i)
+            if (CRC & 0x8000) CRC = CRC << 1 ^ 0x1021; // jezli lewy bit == 1 wykonuj XOR generatorm 1021
+            else CRC = CRC << 1; 									 // jezli nie to XOR przez 0000, czyli przez to samo
     }
-    std::cout << "crc w funkcji" << CRC << '\n';
-    return (CRC);
-     */
-    uint8_t i;
-    uint16_t wCrc = 0xffff;
-    while (ileZnakow--) {
-        wCrc ^= *(unsigned char *)dane++ << 8;
-        for (i=0; i < 8; i++)
-            wCrc = wCrc & 0x8000 ? (wCrc << 1) ^ 0x1021 : wCrc << 1;
-    }
-    return wCrc & 0xffff;
+    return (CRC & 0xFFFF);
 }
 
 int Wysylanie::Potega2(int x) {
     if( x == 0 ) return 1;
     if( x == 1 ) return 2;
-
     int wynik = 2;
-    for( int i = 2; i <= x; i++ ) wynik = wynik * 2;
-
+    for( int i = 2; i <= x; i++ ) {
+        wynik = wynik * 2;
+    }
     return wynik;
 }
 
@@ -89,7 +76,6 @@ char Wysylanie::SumaCRC(int liczba, int ktoryBajt)
     for (int i = 0; i < 8; i++)
         x = x + Potega2(i) * binarna[koniec - i];
 
-    std::cout << "crc bajt: " << ktoryBajt<< ". " << x <<'\n';
 
     return (char)x;
 }
@@ -111,7 +97,7 @@ bool Wysylanie::wyslaniePliku(){
     std::ifstream plik;
     plik.open(this->nazwa,std::fstream::binary);
 
-    int nrBloku = 0;
+    int nrBloku = 1;
     if(plik.good()){
         std::vector<char> buforPliku;
         int rozmiarPliku = 0;
@@ -156,8 +142,7 @@ bool Wysylanie::wyslaniePliku(){
                     char suma[2];
                     suma[0] = SumaCRC(crc, 1);
                     suma[1] = SumaCRC(crc, 2);
-                    std::cout << crc << '\n';
-//                    std::cout << "Suma CRC: " << suma[0] << " " << suma[1] << "\n";
+
                     WriteFile(uchwyt, &suma, 2, &rozmiarZnaku, NULL);
                 }
 
@@ -169,15 +154,19 @@ bool Wysylanie::wyslaniePliku(){
 
                 }
                 if(znak == NAK){
-                    std::cout << "Pakiet nie zostal wyslany poprawnie. Ponowienie proby........\n";
+                    std::cout << "Otrzymano NAK. Pakiet nie zostal wyslany poprawnie. Ponowienie proby........\n";
 
+                }
+                if(znak == CAN) {
+                    std::cout << "Polaczenie przerwane.\n";
+                    return false;
                 }
 
             }while(!czyWyslano);
 
             nrBloku++;
             if(nrBloku == 256)
-                nrBloku = 0;
+                nrBloku = 1;
 
         }
         WriteFile(uchwyt, &EOT, 1, &rozmiarZnaku, NULL);

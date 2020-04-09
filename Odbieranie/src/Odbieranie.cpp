@@ -26,23 +26,8 @@ Odbieranie::Odbieranie(const std::string &nazwa) : nazwa(nazwa) {}
 Odbieranie::~Odbieranie() {
 
 }
-
+/*
 int Odbieranie::CRC(char *dane, int ileZnakow) { // blok danych , ilosc = 128
-//    char i;
-//    int CRC = 0;
-//    while (--ileZnakow >= 0)
-//    {
-//        CRC = CRC ^ (int) *dane++ << 8;
-//        i = 8;
-//        do{
-//            if (CRC & 0x8000)
-//                CRC = CRC << 1 ^ 0x1021;
-//            else
-//                CRC = CRC << 1;
-//        } while(--i);
-//    }
-//    return (CRC);
-
     uint8_t i;
     uint16_t wCrc = 0xffff;
     while (ileZnakow--) {
@@ -95,6 +80,58 @@ char Odbieranie::SumaCRC(int liczba, int ktoryBajt)
         std::cout << tab[i] << " ";
     }
     std::cout << " " << std::endl;
+    return (char)x;
+}
+ */
+int Odbieranie::CRC(char *blok, int ileZnakow) {// blok danych , ilosc = 128
+    int sumaKontrolnaCRC = 0;
+
+    while (--ileZnakow >= 0)
+    {
+        sumaKontrolnaCRC = sumaKontrolnaCRC ^ (int)*blok++ << 8; 								 // wez znak i dopisz osiem zer
+        for (int i = 0; i < 8; ++i)
+            if (sumaKontrolnaCRC & 0x8000) sumaKontrolnaCRC = sumaKontrolnaCRC << 1 ^ 0x1021; // jezli lewy bit == 1 wykonuj XOR generatorm 1021
+            else sumaKontrolnaCRC = sumaKontrolnaCRC << 1; 									 // jezli nie to XOR przez 0000, czyli przez to samo
+    }
+    return (sumaKontrolnaCRC & 0xFFFF);
+}
+
+int Odbieranie::Potega2(int x) {
+    if( x == 0 ) return 1;
+    if( x == 1 ) return 2;
+
+    int wynik = 2;
+    for( int i = 2; i <= x; i++ ) wynik = wynik * 2;
+
+    return wynik;
+}
+
+char Odbieranie::SumaCRC(int liczba, int ktoryBajt)
+{
+    int binarna[16];
+    int reszta = 0;
+
+    for(int i = 0; i < 16; i++) {
+        binarna[i] = 0;
+    }
+
+    for(int i = 0; i < 16; i++) {
+        reszta = liczba % 2;
+        if (reszta == 1) liczba = (liczba - 1) / 2;
+        if (reszta == 0) liczba = liczba / 2;
+        binarna[15-i] = reszta;
+    }
+
+    int koniec;
+    int x = 0;
+    if(ktoryBajt == 1) koniec = 7;
+    if(ktoryBajt == 2) koniec = 15;
+
+    for (int i = 0; i < 8; i++)
+        x = x + Potega2(i) * binarna[koniec - i];
+
+    std::cout << "crc bajt: " << ktoryBajt<< ". " << x <<'\n';
+
     return (char)x;
 }
 
@@ -206,6 +243,11 @@ bool Odbieranie::odbieraniePliku(int flaga) {
     if(znak == EOT){
         std::cout << "Odebrano EOT, transmisja zakonczona sukcesem! \n";
         WriteFile(uchwyt, &ACK, 1, &rozmiarZnaku, NULL);
+        return true;
+    }
+    if(znak == CAN) {
+        std::cout << "Polaczenie przerwane.\n";
+        return false;
     }
 
     plik.close();

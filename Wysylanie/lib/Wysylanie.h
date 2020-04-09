@@ -30,13 +30,12 @@ public:
 
     bool ustawPort();
 
-    unsigned int CRC(char *addr, int num);
+    int CRC(char *blok, int ileZnakow);
 
     int Potega2(int x);
 
     char SumaCRC(int n, int numer);
 
-    int* Binarnie(int liczba);
 
 
 };
