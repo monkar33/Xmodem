@@ -1,4 +1,4 @@
-# Telekomunikacja_zad2
+# Xmodem  - implementacja protokołu transferu plików
 
 Jak uruchomić program?
 1) pobierz Virtual Serial Port Tools
